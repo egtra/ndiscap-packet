@@ -30,27 +30,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include "targetver.h"
+#include "stdafx.h"
 
-#include <cassert>
-#include <cstdint>
-#include <memory>
-#include <new>
-#include <string>
-#include <thread>
-#include <vector>
-#include <system_error>
+static constexpr const wchar_t* SessionName = L"NdisCapPacket";
 
-#include <concurrent_queue.h>
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <winsock2.h>
-#include <ole2.h>
+struct EventTraceData : ADAPTER
+{
+	EventTraceData()
+		: ADAPTER{}
+	{
+	}
 
-#define PTSTR PSTR
-#include "packet32.h"
-#undef PTSTR
-
-#define _ATL_NO_AUTOMATIC_NAMESPACE
-
-#include <atlbase.h>
+	TRACEHANDLE TraceHandleConsumer;
+	std::thread ConsumerThread;
+	concurrency::concurrent_queue<std::vector<std::uint8_t>> Packet;
+};
