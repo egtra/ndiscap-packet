@@ -40,6 +40,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace std::literals;
 
+class ComInitializer
+{
+public:
+	ComInitializer()
+		: m_hr(CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE))
+	{
+		assert(IsInitialized());
+	}
+
+	bool IsInitialized() const
+	{
+		return SUCCEEDED(m_hr) || m_hr == RPC_E_CHANGED_MODE;
+	}
+
+	~ComInitializer()
+	{
+		if (m_hr == S_OK)
+		{
+			CoUninitialize();
+		}
+	}
+
+private:
+	const HRESULT m_hr;
+
+	ComInitializer(const ComInitializer&) = delete;
+	ComInitializer& operator=(const ComInitializer&) = delete;
+};
+
 PCHAR PacketGetVersion()
 {
 	static char version[] = "NdisCapPacket 0.1";
@@ -139,15 +168,29 @@ LPADAPTER PacketOpenAdapter(_In_ PCHAR AdapterName)
 
 	try
 	{
-		auto data = new EventTraceData;
+		auto data = std::make_unique<EventTraceData>();
 		strcpy_s(data->Name, AdapterName);
 
 		if (!data->ConsumerThread.joinable())
 		{
+			ComInitializer comInit;
+
+			auto resultStartCapture = StartCapture();
+			if (std::get<0>(resultStartCapture) != ERROR_SUCCESS)
+			{
+				SetLastError(std::get<0>(resultStartCapture));
+				return nullptr;
+			}
+			data->TraceHandleController = std::get<1>(resultStartCapture);
 
 			EVENT_TRACE_LOGFILE etl{};
+#if 1
 			etl.LoggerName = const_cast<PWSTR>(SessionName);
 			etl.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD | PROCESS_TRACE_MODE_REAL_TIME;
+#else
+			etl.LogFileName = LR"(T:\a.etl)";
+			etl.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
+#endif
 			etl.EventRecordCallback = EventRecordCallback;
 			etl.Context = data.get();
 			auto hTrace = OpenTrace(&etl);
@@ -354,6 +397,8 @@ void PacketCloseAdapter(_In_ LPADAPTER lpAdapter)
 	}
 	auto data = static_cast<EventTraceData*>(lpAdapter);
 
+	ComInitializer comInit;
+	StopCapture(data->TraceHandleController);
 	data->ConsumerThread.join();
 	CloseTrace(data->TraceHandleConsumer);
 	delete data;

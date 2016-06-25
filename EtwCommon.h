@@ -41,7 +41,13 @@ struct EventTraceData : ADAPTER
 	{
 	}
 
+	TRACEHANDLE TraceHandleController;
 	TRACEHANDLE TraceHandleConsumer;
 	std::thread ConsumerThread;
 	concurrency::concurrent_queue<std::vector<std::uint8_t>> Packet;
 };
+
+std::pair<DWORD, TRACEHANDLE> StartCapture();
+void StopCapture(_In_ TRACEHANDLE th);
+
+void CALLBACK EventRecordCallback(_In_ EVENT_RECORD* per);
